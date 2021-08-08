@@ -1,6 +1,8 @@
 "use strict"
 
-exports.tpl = function (tpl, data)
+
+
+module.exports = function (tpl, data)
 {
     let k = [], v = [], _ = `let _=""`;
     for (let i in data)

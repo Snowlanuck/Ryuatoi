@@ -1,6 +1,9 @@
+[: let theme_name = config["setting"]["config"]["theme"]; :]
 <html>
 	<head></head>
 	<body>
-		This is: [:= config["theme"] :]
+		This is: 
+		[:= theme_name :]
+		[:- include("1.sjs") :]
 	</body>
 </html>

@@ -6,31 +6,51 @@ const getinfo = require("./information");
 //getinfo(value => { console.dir(value, { depth: null }); });
 
 const output_path = "./output";
-const posts_path = "./posts";
+const posts_path = "./output/posts";
 
-let generator_sjs = async (path, add_path, value) => {
-    let files = await fs.promises.readdir(path);
-    for (let item of files) {
-        let npath = `${path}/${item}`;
-        if (fs.lstatSync(npath).isDirectory()) {
-            generator_sjs(npath, `${add_path}/${item}`, value);
-        }
-        else {
+let generator_sjs = async (value = tpl.data["theme"], path = "", data = tpl.data) => {
+    for (let item in value) {
+        if ("content" in value[item]) {
+            if (!value[item]["is_generator"]) continue;
             fs.promises.writeFile(
-                `${output_path}/${add_path}/${item.substr(0, item.lastIndexOf("."))}.html`,
-                tpl(await fs.promises.readFile(npath, "utf8"), value));
+                `${output_path}/${path}/${item}.html`,
+                tpl.main(value[item]["content"], data));
         }
+        else generator_sjs(value[item], `${path}/${item}`);
+    }
+}
+
+let post_type_funcs = {};
+post_type_funcs["post"] = (path, post) => {
+    fs.promises.writeFile(path, post["content"]);
+}
+
+post_type_funcs["book"] = (path, post) => {
+    
+}
+
+let generator_post = async (path, posts = tpl.data["posts"]) => {
+    for (let item in posts) {
+        let post = posts[item];
+        if ("title" in post) {
+            post_type_funcs[post["type"]](`${path}/${item}.html`, post);
+        }
+        else generator_post(`${path}/${item}`, post);
     }
 }
 
 let generator = () => {
     getinfo(async value => {
         let configs = value["config"];
-        //console.dir(configs, { depth: null });
+        //console.dir(value, { depth: null });
         const theme_path = `./themes/${configs["setting"]["config"]["theme"]}`;
+        tpl.data = value;
+        tpl.path = theme_path;
         
-        generator_sjs(theme_path, "", configs["setting"]);
-        
+        generator_sjs();
+
+        await fs.promises.mkdir(posts_path);
+        generator_post(posts_path);
     });
 }
 

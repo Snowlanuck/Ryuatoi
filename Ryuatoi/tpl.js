@@ -33,7 +33,7 @@ class TPL {
                 else if ("-" === t[0][0]) _ += `+(\`${eval(t[0].substr(1))}\`)`;
                 else _ += `;${t[0].replace(/\r\n/g, '')}_=_`;
             }
-            _ += `+\`${t[t.length - 1].replace(/\'|\"/g,"\`")}\``;
+            _ += `+\`${t[t.length - 1]}\``;
         }
         _ += ";return _;";
         return (new Function(k, _)).apply(data, v);

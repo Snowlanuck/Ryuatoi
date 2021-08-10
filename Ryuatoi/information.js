@@ -1,18 +1,20 @@
 "use strict"
 
-const fs = require("fs");
+const fs = require("fs").promises;
 
 async function readfiles(path, info, read) {
-    let files = await fs.promises.readdir(path);
-    for (let item of files) {
+    let files = await fs.readdir(path);
+    files = files.map(async item => {
         let npath = `${path}/${item}`;
-        if (fs.lstatSync(npath).isDirectory()) {
+        if ((await fs.stat(npath)).isDirectory()) {
             await readfiles(npath, (info[item] = {}), read);
         }
         else {
             await read(npath, item, info);
         }
-    }
+    });
+
+    await Promise.all(files);
 }
 
 function gethead(value) {
@@ -28,7 +30,7 @@ function gethead(value) {
 }
 
 async function getfile(path) {
-    let res = {}, value = await fs.promises.readFile(path, "utf8");
+    let res = {}, value = await fs.readFile(path, "utf8");
     if (!value.includes("---")) {
         res["content"] = value;
     }
@@ -43,18 +45,18 @@ async function getfile(path) {
 
 async function readconfig(path, name, info) {
     name = name.substr(0, name.lastIndexOf('.'));
-    info[name] = JSON.parse(await fs.promises.readFile(path));
+    info[name] = JSON.parse(await fs.readFile(path));
 }
 
 const default_post = {
     title: "",
-    data: "",
+    date: "",
     tags: [],
     published: true,
     hideInList: false,
     feature: "",
     isTop: false,
-    type: "",
+    type: "article",
     content: ""
 };
 
@@ -64,13 +66,26 @@ async function readpost(path, name, info) {
 }
 
 const default_theme = {
+    type: "sjs",
     is_generator: true,
     content: ""
 };
 
+const default_theme_config = {
+    article_template: "article.sjs",
+    book_template: "book.sjs"
+}
+
 async function readtheme(path, name, info) {
+    let suffix = name.substr(name.lastIndexOf('.') + 1);
     name = name.substr(0, name.lastIndexOf('.'));
-    info[name] = { ...default_theme, ...await getfile(path) }
+
+    if (suffix == "sjs") {
+        info[name] = { ...default_theme, ...await getfile(path) }
+    }
+    else if (name == "config" && suffix == "json") {
+        info[name] = { ...default_theme_config, type: "json", ...JSON.parse(await fs.readFile(path)) };
+    }   
 }
 
 const config_path = "./config";
@@ -82,7 +97,11 @@ module.exports = (callback) => {
         await readfiles(config_path, info["config"], readconfig);
         await readfiles(posts_path, info["posts"], readpost);
         const theme_path = `./themes/${info["config"]["setting"]["config"]["theme"]}`;
+        
         await readfiles(theme_path, info["theme"], readtheme);
+        if (!("config" in info["theme"])) {
+            info["theme"]["config"] = { ...default_theme_config, type: "json" };
+        }
         callback(info);
     })();
 }

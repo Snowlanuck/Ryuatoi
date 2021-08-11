@@ -85,7 +85,10 @@ async function readtheme(path, name, info) {
     }
     else if (name == "config" && suffix == "json") {
         info[name] = { ...default_theme_config, type: "json", ...JSON.parse(await fs.readFile(path)) };
-    }   
+    }
+    else {
+        info[name] = { ...default_theme, type: suffix, ...await getfile(path) };
+    }
 }
 
 const config_path = "./config";

@@ -1,6 +1,7 @@
 "use strict"
 
 const fs = require("fs").promises;
+const sass = require("node-sass");
 const tpl = require("./tpl");
 const getinfo = require("./information");
 //getinfo(value => { console.dir(value, { depth: null }); });
@@ -33,13 +34,21 @@ let generator_sjs = async (value = tpl.data["theme"], path = "", data = tpl.data
     for (let item in value) {
         if (item in post_type_funcs) continue;
         if ("type" in value[item]) {
-            if (value[item]["type"] == "sjs") {
-                if (!value[item]["is_generator"]) continue;
+            if (!value[item]["is_generator"]) continue;
 
-                let npath = `${output_path}/${path}`;
-                if (!await fs.stat(npath).catch(() => false))
-                    await fs.mkdir(npath);
+            let npath = `${output_path}/${path}`;
+            if (!await fs.stat(npath).catch(() => false))
+                await fs.mkdir(npath);
+            
+            if (value[item]["type"] == "sjs") {
                 fs.writeFile(`${npath}/${item}.html`, tpl.main(value[item]["content"], data));
+            }
+            else if (value[item]["type"] == "sass") {
+                //console.log(sass.renderSync({ data: value[item]["content"] }).css);
+                fs.writeFile(`${npath}/${item}.css`, sass.renderSync({ data: value[item]["content"] }).css);
+            }
+            else {
+                fs.writeFile(`${npath}/${item}.${value[item]["type"]}`, value[item]["content"]);
             }
         }
         else generator_sjs(value[item], `${path}/${item}`);

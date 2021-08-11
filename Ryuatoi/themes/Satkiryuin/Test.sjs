@@ -1,6 +1,10 @@
 [: let theme_name = config["setting"]["config"]["theme"]; :]
 <html>
-	<head></head>
+	<head>
+		<style>
+			@import url(main.css);
+		</style>
+	</head>
 	<body>
 		This is: 
 		[:= theme_name :]

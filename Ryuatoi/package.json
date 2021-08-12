@@ -1,14 +1,22 @@
 {
   "name": "ryuatoi",
   "version": "1.0.0",
-  "description": "",
+  "description": "A static website generator",
   "main": "generator.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Snowlanuck/Ryuatoi.git"
+  },
+  "author": "Snowlanuck",
   "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Snowlanuck/Ryuatoi/issues"
+  },
+  "homepage": "https://github.com/Snowlanuck/Ryuatoi#readme",
   "dependencies": {
-    "sass": "^1.37.5"
+    "node-sass": "^6.0.1"
   }
 }

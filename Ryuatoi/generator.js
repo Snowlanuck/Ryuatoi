@@ -9,6 +9,10 @@ const getinfo = require("./information");
 const output_path = "./output";
 const posts_path = "./output/posts";
 
+async function File_isExist(path) {
+    return (await fs.stat(path).catch(() => false)) ? true : false;
+}
+
 let post_type_funcs = {};
 let post_type_template = {};
 
@@ -16,15 +20,24 @@ post_type_funcs["article"] = (path, post) => {
     fs.writeFile(path, tpl.main(post_type_template["article"], post));
 }
 
+let books = {};
 post_type_funcs["book"] = (path, post) => {
     
 }
 
 let generator_post = async (path, posts = tpl.data["posts"]) => {
+    if (!await File_isExist(path))
+        await fs.mkdir(path);
+
+    //console.log(path);
+    
     for (let item in posts) {
         let post = posts[item];
-        if ("type" in post) {
-            post_type_funcs[post["type"]](`${path}/${item}.html`, post);
+        //console.dir(post, { depath: null });
+        if (!isObject(post)) {
+            //console.log(post, tpl.data["posts_map"].get(post)["type"]);
+            post = tpl.data["posts_map"].get(post);
+            post_type_funcs[ post["type"] ](`${path}/${item}.html`, post);
         }
         else generator_post(`${path}/${item}`, post);
     }
@@ -37,7 +50,7 @@ let generator_sjs = async (value = tpl.data["theme"], path = "", data = tpl.data
             if (!value[item]["is_generator"]) continue;
 
             let npath = `${output_path}/${path}`;
-            if (!await fs.stat(npath).catch(() => false))
+            if (!await File_isExist(npath))
                 await fs.mkdir(npath);
             
             if (value[item]["type"] == "sjs") {
@@ -67,12 +80,13 @@ async function rmdir(path) {
 
 let generator = () => {
     getinfo(async value => {
+        //console.dir(value, { depth: null });
+
         if (await fs.stat(output_path).catch(() => false))
             await rmdir(output_path);
         await fs.mkdir(output_path);
 
         let configs = value["config"];
-        //console.dir(value, { depth: null });
 
         const theme_config = value["theme"]["config"];
         const theme_path = `./themes/${configs["setting"]["config"]["theme"]}`;

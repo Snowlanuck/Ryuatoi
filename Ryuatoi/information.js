@@ -7,7 +7,15 @@ async function readfiles(path, info, read) {
     files = files.map(async item => {
         let npath = `${path}/${item}`;
         if ((await fs.stat(npath)).isDirectory()) {
-            await readfiles(npath, (info[item] = {}), read);
+            if (item[0] == '[') {
+                let type = item.substring(1, item.indexOf("]"));
+                //console.log(type);
+
+                //info[item]["_type"] = type;
+                let name = item.substring(item.indexOf("]") + 1);
+                await readfiles(npath, (info[name] = { "_ftype": "folder", "_type": type }), read);
+            }
+            else await readfiles(npath, (info[item] = { "_ftype": "folder" }), read);
         }
         else {
             await read(npath, item, info);
@@ -40,12 +48,12 @@ async function getfile(path) {
         res["content"] = head.substr(head.indexOf("---") + 3);
     }
 
-    return res;
+    return { ...res, "_ftype": "file" };
 }
 
 async function readconfig(path, name, info) {
     name = name.substr(0, name.lastIndexOf('.'));
-    info[name] = JSON.parse(await fs.readFile(path));
+    info[name] = { ...JSON.parse(await fs.readFile(path, "utf8")), "_ftype": "file" }
 }
 
 const default_post = {
@@ -62,12 +70,21 @@ const default_post = {
 
 let posts_map = new Map();
 async function readpost(path, name, info) {
-    name = name.substr(0, name.lastIndexOf('.'));
+    //name = name.substr(0, name.lastIndexOf('.'));
     //info[name] = { ...default_post, ...await getfile(path) }
-    let value = await getfile(path);
-    posts_map.set(value["title"], { ...default_post, ...value });
-
-    info[name] = value["title"];
+    if (name == ".config") {
+        Object.assign(info, { ...JSON.parse(await fs.readFile(path, "utf8")) });
+    }
+    else if (name[0] == '[') {
+        name = name.substr(1, name.indexOf("]") - 1);
+        console.log(name);
+    }
+    else {
+        let value = await getfile(path);
+        posts_map.set(value["title"], { ...default_post, ...value });
+    
+        info[name] = { id: value["title"], "_ftype": "file" };
+    }
 }
 
 const default_theme = {
@@ -78,7 +95,9 @@ const default_theme = {
 
 const default_theme_config = {
     article_template: "article.sjs",
-    book_template: "book.sjs"
+    book_template: "book.sjs",
+    book_page_template: "book_page.sjs",
+    "_ftype": "file"
 }
 
 async function readtheme(path, name, info) {
@@ -96,22 +115,21 @@ async function readtheme(path, name, info) {
     }
 }
 
-global.isObject = (arg) => {
-    return arg !== null && typeof arg === 'object';
-}
 function gettag(posts, info_tags) {
-    for (let post in posts) {
-        if (!isObject(posts[post])) {
-            post = posts_map.get(posts[post]);
-            for (let tag of post["tags"]) {
-                if (!(tag in info_tags)) {
-                    info_tags[tag] = [];
-                }
-                info_tags[tag].push(post["title"]);
+    if (posts["_ftype"] === "file") {
+        let post = posts_map.get(posts["id"]);
+        for (let tag of post["tags"]) {
+            if (!(tag in info_tags)) {
+                info_tags[tag] = [];
             }
+            info_tags[tag].push(post["title"]);
         }
-        else gettag(posts[post], info_tags);
     }
+    else for (let post in posts) {
+        if (post[0] === "_") continue;
+        gettag(posts[post], info_tags);
+    }
+
 }
 
 const config_path = "./config";
@@ -131,9 +149,9 @@ module.exports = (callback) => {
             info["theme"]["config"] = { ...default_theme_config, type: "json" };
         }
 
-        //console.dir(info, { depth: null });
-
         gettag(info["posts"], info["posts_tag"]);
+
+        //console.dir(info, { depth: null });
         callback(info);
     })();
 }

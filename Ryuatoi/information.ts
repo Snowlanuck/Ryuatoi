@@ -6,7 +6,15 @@ import * as Default from "./default"
 
 export class file {
     [value: string]: any;
-    constructor(public _name: string = "", public _type: string = null, public _value: string = "", public _path: string = "") { }
+    constructor(public _name: string = "", public _type: string = null, public _value: Buffer = null, public _path: string = "") { }
+
+    fullname(): string {
+        return `${this._name}.${this._type}`;
+    }
+
+    fullpath(): string {
+        return Path.join(this._path, this.fullname());
+    }
 }
 
 export class folder {
@@ -42,7 +50,7 @@ async function readfiles(path: string, info: folder, read: (path: string, info: 
             if (item[0] === "[") {
                 let type: string = item.substring(1, item.indexOf("]"));
                 let name: string = item.substring(item.indexOf("]") + 1);
-                
+
                 await readfiles(npath, (info[name] = new folder(name, type, {}, npath)), read);
             }
             else {
@@ -57,25 +65,30 @@ async function readfiles(path: string, info: folder, read: (path: string, info: 
     await Promise.all(pro_files);
 }
 
+const file_str = ["sjs", "yml", "sass", "md"]; //可以用字符串读的类型
 async function getfile(path: string): Promise<file> {
-    let res = new file(fname(path), ftype(path), "", fdir(path));
-    let value: string = await Fs.readFile(path, "utf-8");
-    if (!value.includes("---")) {
-        res._value = value;
+    let res = new file(fname(path), ftype(path), null, fdir(path));
+    if (!(res._type in file_str)) {
+        res._value = await Fs.readFile(path);
     }
     else {
-        let head: string = value.substring(value.indexOf("---") + 3);
-        Object.assign(res, Yaml.parse(head.substring(0, head.indexOf("---"))));
-        res._value = head.substring(head.indexOf("---") + 3);
+        let value: string = await Fs.readFile(path, "utf-8");
+        if (!value.includes("---")) {
+            res._value = Buffer.from(value);
+        }
+        else {
+            let head: string = value.substring(value.indexOf("---") + 3);
+            Object.assign(res, Yaml.parse(head.substring(0, head.indexOf("---"))));
+            res._value = Buffer.from(head.substring(head.indexOf("---") + 3));
+        }
     }
-
     return res;
 }
 
 async function readconfig(path: string, info: folder) {
     let name: string = fname(path);
     let type: string = ftype(path);
-    info[name] = Object.assign(new file(name, type, "", fdir(path)), Yaml.parse(await Fs.readFile(path, "utf-8")));
+    info[name] = Object.assign(new file(name, type, null, fdir(path)), Yaml.parse(await Fs.readFile(path, "utf-8")));
 }
 
 let posts_map = new Map<number, file>();
@@ -88,7 +101,7 @@ async function readpost(path: string, info: folder) {
     else {
         let value: file = Object.assign(new file(), Default.post, await getfile(path));
         posts_map.set(posts_cnt, value);
-        info[fname(path)] = Object.assign(new file(fname(path), ftype(path), "", fdir(path)), { id: posts_cnt });
+        info[fname(path)] = Object.assign(new file(fname(path), ftype(path), null, fdir(path)), { id: posts_cnt });
         posts_cnt++;
     }
 }
@@ -101,7 +114,7 @@ async function readtheme(path: string, info: folder) {
         info[name] = Object.assign(new file(), Default.sjs, await getfile(path));
     }
     else if (name === "config" && type === "yml") {
-        info._config = Object.assign(new file(name, type, "", fdir(path)), Yaml.parse(await Fs.readFile(path, "utf-8")));
+        info._config = Object.assign(new file(name, type, null, fdir(path)), Yaml.parse(await Fs.readFile(path, "utf-8")));
     }
     else {
         info[name] = Object.assign(new file(name, type), Default.sjs, await getfile(path));

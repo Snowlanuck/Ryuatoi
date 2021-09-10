@@ -17,8 +17,7 @@ export const sjs = {
 };
 
 export const theme_config = {
-    md_template: "md.sjs",
-    book_template: "book.sjs",
-    book_page_template: "book_page.sjs",
-    "_ftype": "file"
+    file_template_md: "md.sjs",
+    folder_template_book: "book.sjs",
+    file_template_book_page: "book_page.sjs",
 };

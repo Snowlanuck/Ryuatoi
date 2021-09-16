@@ -1,36 +1,56 @@
-import { promises as Fs } from "fs";
+import { exists, promises as Fs } from "fs";
 import * as Yaml from "yaml";
 import * as Feed from "feed";
 import * as Path from "path";
-import * as Default from "./default"
+import { Extend } from "./extend";
 
-export class file {
+export class File {
     [value: string]: any;
-    constructor(public _name: string = "", public _type: string = null, public _value: Buffer = null, public _path: string = "") { }
+    ":name": string;
+    ":type": string | null;
+    ":value": Buffer | null;
+    ":path": string;
+
+    constructor(name: string = "", type: string | null = null, value: Buffer | null = null, path: string = "") {
+        this[":name"] = name;
+        this[":type"] = type;
+        this[":value"] = value;
+        this[":path"] = path;
+    }
 
     fullname(): string {
-        return `${this._name}.${this._type}`;
+        return `${this[":name"]}.${this[":type"]}`;
     }
 
     fullpath(): string {
-        return Path.join(this._path, this.fullname());
+        return Path.join(this[":path"], this.fullname());
     }
 }
 
-export class folder {
-    [value: string]: file | folder | string | object;
-    constructor(public _name: string = "", public _type: string = null, public _config: object = {}, public _path: string = "") { }
+export class Folder {
+    [value: string]: File | Folder | string | object | null;
+    ":name": string;
+    ":type": string | null;
+    ":config": object;
+    ":path": string;
+
+    constructor(name: string = "", type: string | null = null, config: object = {}, path: string = "") {
+        this[":name"] = name;
+        this[":type"] = type;
+        this[":config"] = config;
+        this[":path"] = path;
+    }
 }
 
-function fdir(path: string): string {
+export function fdir(path: string): string {
     return Path.dirname(path);
 }
 
-function fbase(path: string): string {
+export function fbase(path: string): string {
     return Path.basename(path);
 }
 
-function fname(path: string): string {
+export function fname(path: string): string {
     let name: string = Path.basename(path);
     if (name.includes(".")) {
         name = name.substring(0, name.lastIndexOf("."));
@@ -38,133 +58,128 @@ function fname(path: string): string {
     return name;
 }
 
-function ftype(path: string): string {
+export function ftype(path: string): string {
     return Path.extname(path).substring(1);
 }
 
-async function readfiles(path: string, info: folder, read: (path: string, info: folder) => Promise<void>): Promise<void> {
+async function readfiles(path: string, info: Folder): Promise<void> {
     let files: string[] = await Fs.readdir(path);
     let pro_files = files.map(async item => {
         let npath: string = Path.join(path, item);
         if ((await Fs.stat(npath)).isDirectory()) {
-            if (item[0] === "[") {
-                let type: string = item.substring(1, item.indexOf("]"));
-                let name: string = item.substring(item.indexOf("]") + 1);
+            let name: string = item;
+            let type: string | null = null;
 
-                await readfiles(npath, (info[name] = new folder(name, type, {}, npath)), read);
+            if (item[0] === "[") {
+                name = item.substring(item.indexOf("]") + 1);
+                type = item.substring(1, item.indexOf("]"));
             }
-            else {
-                await readfiles(npath, (info[item] = new folder(item, null, {}, npath)), read);
-            }
+            await readfiles(npath, (info[name] = new Folder(name, type, {}, npath)));
         }
         else {
-            await read(npath, info);
+            if (item === "config.yml") {
+                //Object.assign(info, Yaml.parse(await Fs.readFile(npath, "utf-8")));
+                info[":config"] = Object.assign(info[":config"], Yaml.parse(Extend.config_parse(await Fs.readFile(npath, "utf-8"))));
+            }
+            else if (ftype(item) in Extend.ReadFile) {
+                await Extend.ReadFile[ftype(item)](npath, info);
+            }
+            else {
+                info[fname(item)] = new File(fname(item), ftype(item), await Fs.readFile(npath), npath);
+            }
         }
     });
 
     await Promise.all(pro_files);
 }
 
-const file_str = ["sjs", "yml", "sass", "md"]; //可以用字符串读的类型
-async function getfile(path: string): Promise<file> {
-    let res = new file(fname(path), ftype(path), null, fdir(path));
-    if (!(res._type in file_str)) {
-        res._value = await Fs.readFile(path);
-    }
-    else {
-        let value: string = await Fs.readFile(path, "utf-8");
-        if (!value.includes("---")) {
-            res._value = Buffer.from(value);
-        }
-        else {
-            let head: string = value.substring(value.indexOf("---") + 3);
-            Object.assign(res, Yaml.parse(head.substring(0, head.indexOf("---"))));
-            res._value = Buffer.from(head.substring(head.indexOf("---") + 3));
-        }
-    }
-    return res;
+export class Info_Extend {
+    [key: string]: any;
+    name: string = "";
+    version: string = "";
+    main: string = "";
+    priority: number = 0;
 }
 
-async function readconfig(path: string, info: folder) {
-    let name: string = fname(path);
-    let type: string = ftype(path);
-    info[name] = Object.assign(new file(name, type, null, fdir(path)), Yaml.parse(await Fs.readFile(path, "utf-8")));
+export class Info {
+    [key: string]: any;
+    config: Folder = new Folder("config");
+    theme: Folder = new Folder("theme");
+    posts_map: { [key: number]: File } = {};
+    posts: Folder = new Folder("posts");
+    tags: { [key: string]: number[] } = {};
+    extends: { [key: string]: Info_Extend } = {};
 }
 
-let posts_map = new Map<number, file>();
-let posts_cnt = 0;
+export let info = new Info();
 
-async function readpost(path: string, info: folder) {
-    if (fbase(path) === "config.yml") {
-        info._config = Yaml.parse(await Fs.readFile(path, "utf-8"));
-    }
-    else {
-        let value: file = Object.assign(new file(), Default.post, await getfile(path));
-        posts_map.set(posts_cnt, value);
-        info[fname(path)] = Object.assign(new file(fname(path), ftype(path), null, fdir(path)), { id: posts_cnt });
-        posts_cnt++;
+const extend_path = "./extends";
+async function load_extends(): Promise<void> {
+    let exts: string[] = await Fs.readdir(extend_path);
+    for (let ext of exts) {
+        let value: Info_Extend = Yaml.parse(Extend.config_parse(await Fs.readFile(Path.join(extend_path, ext, "config.yml"), "utf-8")));
+        info.extends[value["name"]] = value;
+        require(`./${Path.join(extend_path, ext, value["main"])}`);
     }
 }
 
-async function readtheme(path: string, info: folder) {
-    let name: string = fname(path);
-    let type: string = ftype(path);
-
-    if (type === "sjs") {
-        info[name] = Object.assign(new file(), Default.sjs, await getfile(path));
-    }
-    else if (name === "config" && type === "yml") {
-        info._config = Object.assign(new file(name, type, null, fdir(path)), Yaml.parse(await Fs.readFile(path, "utf-8")));
-    }
-    else {
-        info[name] = Object.assign(new file(name, type), Default.sjs, await getfile(path));
-    }
+class Config {
+    [key: string]: string;
+    name: string = "";
+    description: string = "";
+    link: string = "";
+    image: string = "";
+    copyright: string = "";
+    theme: string = "";
+    theme_path: string = "";
+    posts_path: string = "";
+    config_path: string = "";
+    output_path: string = "";
+    extends_path: string = "";
 }
 
-function gettag(posts: folder | file, tags: Map<string, number[]>) {
-    if (posts instanceof file) {
-        let post: file = posts_map.get(posts.id);
-        for (let tag of post.tags) {
-            if (!(tag in tags)) {
-                tags[tag] = new Array<number>();
-            }
-            tags[tag].push(posts.id);
-        }
-    }
-    else for (let post in posts) {
-        if (post[0] === "_") continue;
-        gettag(posts[post] as folder | file, tags);
-    }
+export let config = new Config();
+let load_config = async () => {
+    config.config_path = Path.resolve("./config");
+    config.posts_path = Path.resolve("./posts");
+    config.output_path = Path.resolve("./output");
+    config.extends_path = Path.resolve("./extends");
+
+    info.config[":config"] = Yaml.parse(await Fs.readFile(Path.join(config.config_path, "config.yml"), "utf-8"));
+    config = Object.assign(config, info.config[":config"]);
+    info.config[":config"] = config;
+
+    config.theme_path = Path.resolve(Path.join("./themes", config.theme));    
 }
 
-const config_path = "./config";
-const posts_path = "./posts";
-let theme_path: string;
+export async function getinfo(callback: (info: Info) => void) {
+    load_config();
+    console.log("load default config success!");
+    //console.log("default config => ", config);
 
-export let info = {
-    config: new folder("config"),
-    theme: new folder("theme"),
-    posts_map: new Map<number, file>(),
-    posts: new folder("posts"),
-    tags: new Map<string, number[]>()
-};
+    await load_extends();
+    console.log("load extends success!");
 
-export function getinfo(callback) {
-    (async () => {
-        await readfiles(config_path, info.config, readconfig);
-        await readfiles(posts_path, info.posts, readpost);
-        info.posts_map = posts_map;
+    // console.log("!!! extends => ", info.extends);
 
-        theme_path = Path.join("./themes/", info.config["setting"]["config"]["theme"]);
+    await readfiles(config.config_path, info.config);
 
-        await readfiles(theme_path, info.theme, readtheme);
-        if (!("config" in info.theme)) {
-            info.theme["config"] = { ...Default.theme_config, type: "yml" };
-        }
+    //Extend.Config = config;
 
-        gettag(info.posts, info.tags);
+    //config变量传入所有yaml文件解析
+    //config变量传入所有sjs文件解析
+    //生成后的插件注册器
+    //book类文件夹
+    
+    console.log("load configs success!");
 
-        //console.dir(info, { depth: null });
-        callback(info);
-    })();
+    console.log("read info.config success!");
+    console.log("info.config => ", info.config);
+
+    console.log("theme_path => ", config.theme_path);
+    await readfiles(config.posts_path, info.posts);
+    await readfiles(config.theme_path, info.theme);
+
+    Extend.read_after_emit();
+    callback(info);
 }

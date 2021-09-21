@@ -1,6 +1,5 @@
-import { exists, promises as Fs } from "fs";
+import { promises as Fs } from "fs";
 import * as Yaml from "yaml";
-import * as Feed from "feed";
 import * as Path from "path";
 import { Extend } from "./extend";
 
@@ -31,7 +30,7 @@ export class Folder {
     [value: string]: File | Folder | string | object | null;
     ":name": string;
     ":type": string | null;
-    ":config": object;
+    ":config": { [key: string]: any };
     ":path": string;
 
     constructor(name: string = "", type: string | null = null, config: object = {}, path: string = "") {
@@ -116,11 +115,19 @@ export let info = new Info();
 const extend_path = "./extends";
 async function load_extends(): Promise<void> {
     let exts: string[] = await Fs.readdir(extend_path);
+    let list: Info_Extend[] = [];
     for (let ext of exts) {
         let value: Info_Extend = Yaml.parse(Extend.config_parse(await Fs.readFile(Path.join(extend_path, ext, "config.yml"), "utf-8")));
-        info.extends[value["name"]] = value;
-        require(`./${Path.join(extend_path, ext, value["main"])}`);
+        list.push(value);
+        // info.extends[value["name"]] = value;
+        // require(`./${Path.join(extend_path, ext, value["main"])}`);
     }
+
+    list.sort((a, b) => { return a.priority - b.priority; });
+    list.forEach(v => {
+        info.extends[v["name"]] = v;
+        require(`./${Path.join(extend_path, v.name, v["main"])}`);
+    })
 }
 
 class Config {
@@ -140,40 +147,36 @@ class Config {
 
 export let config = new Config();
 let load_config = async () => {
-    config.config_path = Path.resolve("./config");
-    config.posts_path = Path.resolve("./posts");
-    config.output_path = Path.resolve("./output");
-    config.extends_path = Path.resolve("./extends");
+    info.config[":config"] = new Config();
+    info.config[":config"].config_path = Path.resolve("./config");
+    info.config[":config"].posts_path = Path.resolve("./posts");
+    info.config[":config"].output_path = Path.resolve("./output");
+    info.config[":config"].extends_path = Path.resolve("./extends");
 
-    info.config[":config"] = Yaml.parse(await Fs.readFile(Path.join(config.config_path, "config.yml"), "utf-8"));
-    config = Object.assign(config, info.config[":config"]);
-    info.config[":config"] = config;
+    info.config[":config"] = Object.assign(
+        info.config[":config"],
+        Yaml.parse(await Fs.readFile(Path.join(info.config[":config"].config_path, "config.yml"), "utf-8"))
+    );
 
-    config.theme_path = Path.resolve(Path.join("./themes", config.theme));    
+    info.config[":config"].theme_path = Path.resolve(Path.join("./themes", info.config[":config"].theme));
+
+    info.config[":config"] = Object.assign(
+        info.config[":config"],
+        Yaml.parse(await Fs.readFile(Path.join(info.config[":config"].theme_path, "_config.yml"), "utf-8"))
+    );
+
+    config = info.config[":config"] as Config;
 }
 
 export async function getinfo(callback: (info: Info) => void) {
     load_config();
     console.log("load default config success!");
-    //console.log("default config => ", config);
 
     await load_extends();
     console.log("load extends success!");
 
-    // console.log("!!! extends => ", info.extends);
-
     await readfiles(config.config_path, info.config);
 
-    //Extend.Config = config;
-
-    //config变量传入所有yaml文件解析
-    //config变量传入所有sjs文件解析
-    //生成后的插件注册器
-    //book类文件夹
-    
-    console.log("load configs success!");
-
-    console.log("read info.config success!");
     console.log("info.config => ", info.config);
 
     console.log("theme_path => ", config.theme_path);

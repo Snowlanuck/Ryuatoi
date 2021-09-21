@@ -15,7 +15,7 @@ Extend.ReadFile["sjs"] = async (path: string, info: Folder) => {
     let name: string = fname(path);
     let type: string = ftype(path);
     info[name] = Object.assign(new File(name, type, Buffer.from(value), fdir(path)), new SJS(), head);
-}
+};
 
 Extend.File.render_register("sjs", "html", async (output_path: string, value: File) => {
     if (!value["is_generator"]) return;

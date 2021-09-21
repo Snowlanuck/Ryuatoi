@@ -79,7 +79,7 @@ export namespace Extend {
             await Fs.mkdir(output_path);
 
         for (let item in value) {
-            if (item[0] === ":") continue;
+            if (item[0] === ":" || item[0] === "_") continue;
             
             let v = value[item];
             if (v instanceof IFile) {

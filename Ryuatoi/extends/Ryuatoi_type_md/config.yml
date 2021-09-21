@@ -2,4 +2,4 @@ name: "Ryuatoi_type_md"
 version: "0.0.1"
 main: "index"
 priority: -1
-template_path: [:(theme_path):]/md.sjs
+template_path: [:(theme_path):]/_templates/md.sjs

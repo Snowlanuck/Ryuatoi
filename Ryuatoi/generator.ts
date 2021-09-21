@@ -1,8 +1,6 @@
 import { promises as Fs } from "fs";
-import * as Sass from "sass";
 import * as Path from "path";
-import tpl from "./tpl";
-import { getinfo, Info, File, Folder } from "./information";
+import { getinfo, Info } from "./information";
 import { Extend } from "./extend";
 
 const output_path = "./output";
@@ -19,11 +17,21 @@ let generator = () => {
 
         await Fs.mkdir(output_path);
 
-        console.log("generator!");
+        console.log("To start generating!");
 
+        console.log("To start genderating posts!");
         Extend.render(Path.resolve(Path.join(output_path, "posts")), info.posts);
+
+        console.log("To start genderating theme!");
         Extend.render(Path.resolve(output_path), info.theme);
+        console.log("Generate complete");
+
+        console.log("Start Generate_After");
         Extend.render_after_emit();
+        console.log("Generate_After complete");
+
+        // console.log(">>> info => ");
+        // console.dir(info, { depth: null });
     });
 }
 

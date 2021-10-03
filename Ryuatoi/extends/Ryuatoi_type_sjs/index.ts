@@ -1,4 +1,4 @@
-import { Extend } from "../../extend";
+import { Extend, Tool } from "../../extend";
 import tpl from "../../tpl";
 import { promises as Fs } from "fs";
 import { File, Folder, info, fname, ftype, fdir } from "../../information";
@@ -11,7 +11,7 @@ class SJS {
 };
 
 Extend.ReadFile["sjs"] = async (path: string, info: Folder) => {
-    let [head, value] = Extend.Front_matter(await Fs.readFile(path, "utf-8"));
+    let [head, value] = Tool.Front_matter(await Fs.readFile(path, "utf-8"));
     let name: string = fname(path);
     let type: string = ftype(path);
     info[name] = Object.assign(new File(name, type, Buffer.from(value), fdir(path)), new SJS(), head);
@@ -21,7 +21,7 @@ Extend.File.render_register("sjs", "html", async (output_path: string, value: Fi
     if (!value["is_generator"]) return;
     await Fs.writeFile(
         Path.join(output_path, `${value[":name"]}.html`),
-        tpl(Extend.config_parse((value[":value"] as Buffer).toString()), value, value[":path"])
+        tpl(Tool.config_parse((value[":value"] as Buffer).toString()), value, value[":path"])
     );
 });
 

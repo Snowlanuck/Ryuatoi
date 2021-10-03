@@ -1,7 +1,7 @@
 import { Extend } from "../../extend";
 import { info, File, Folder } from "../../information";
 
-Extend.read_after_register(() => {
+Extend.ReadEvent.register("after", async () => {
     let categorys: { [key: string]: number[] } = {};
 
     (function getCategorys(posts: Folder = info.posts) {

@@ -1,0 +1,5 @@
+name: "Ryuatoi_folder_post"
+version: "0.0.1"
+main: "index"
+priority: -1
+template_path: [:(theme_path):]/_templates/md.sjs

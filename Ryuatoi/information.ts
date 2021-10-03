@@ -1,7 +1,7 @@
 import { promises as Fs } from "fs";
 import * as Yaml from "yaml";
 import * as Path from "path";
-import { Extend } from "./extend";
+import { Extend, Tool } from "./extend";
 
 export class File {
     [value: string]: any;
@@ -78,7 +78,7 @@ async function readfiles(path: string, info: Folder): Promise<void> {
         else {
             if (item === "config.yml") {
                 //Object.assign(info, Yaml.parse(await Fs.readFile(npath, "utf-8")));
-                info[":config"] = Object.assign(info[":config"], Yaml.parse(Extend.config_parse(await Fs.readFile(npath, "utf-8"))));
+                info[":config"] = Object.assign(info[":config"], Yaml.parse(Tool.config_parse(await Fs.readFile(npath, "utf-8"))));
             }
             else if (ftype(item) in Extend.ReadFile) {
                 await Extend.ReadFile[ftype(item)](npath, info);
@@ -117,13 +117,12 @@ async function load_extends(): Promise<void> {
     let exts: string[] = await Fs.readdir(extend_path);
     let list: Info_Extend[] = [];
     for (let ext of exts) {
-        let value: Info_Extend = Yaml.parse(Extend.config_parse(await Fs.readFile(Path.join(extend_path, ext, "config.yml"), "utf-8")));
+        let config: string = await Fs.readFile(Path.join(extend_path, ext, "config.yml"), "utf-8");
+        let value: Info_Extend = Yaml.parse(Tool.config_parse(config));
         list.push(value);
-        // info.extends[value["name"]] = value;
-        // require(`./${Path.join(extend_path, ext, value["main"])}`);
     }
 
-    list.sort((a, b) => { return a.priority - b.priority; });
+    list.sort((a: Info_Extend, b: Info_Extend) => { return a.priority - b.priority; });
     list.forEach(v => {
         info.extends[v["name"]] = v;
         require(`./${Path.join(extend_path, v.name, v["main"])}`);
@@ -168,8 +167,10 @@ let load_config = async () => {
     config = info.config[":config"] as Config;
 }
 
-export async function getinfo(callback: (info: Info) => void) {
-    load_config();
+export async function getinfo(callback: () => void) {
+    await Extend.ReadEvent.execute("before");
+
+    await load_config();
     console.log("load default config success!");
 
     await load_extends();
@@ -183,6 +184,7 @@ export async function getinfo(callback: (info: Info) => void) {
     await readfiles(config.posts_path, info.posts);
     await readfiles(config.theme_path, info.theme);
 
-    Extend.read_after_emit();
-    callback(info);
+    await Extend.ReadEvent.execute("do");
+    await Extend.ReadEvent.execute("after");
+    callback();
 }
